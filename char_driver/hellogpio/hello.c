@@ -28,6 +28,9 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <linux/ioport.h>
+#include "myioctl.h"
+
+#define GPIO_MINOR 99
 
 //#include "bcm2835.h"
 static struct cdev *mydev;
@@ -37,26 +40,43 @@ static struct class *myclass = NULL;
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-int hello_open(struct inode *pnode, struct file *filp)
+// static 修饰函数，函数不能被其他文件的函数调用
+static int hello_open(struct inode *pnode, struct file *filp)
 {
     printk("open success\n");
     return 0;
 }
 
-int hello_release(struct inode *pnode, struct file *filp)
+static int hello_release(struct inode *pnode, struct file *filp)
 {
     printk("close success\n");
     return 0;
 }
 
+static long hello_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+    printk("ioctl success\n");
+    switch (cmd)
+    {
+        case IOCTL_SET_PIN_MODE:
+            printk("IOCTL_SET_PIN_MODE\n");
+            break;
+        case IOCTL_SET_PIN_DIGITAL:
+            printk("IOCTL_SET_PIN_DIGITAL\n");
+            break;
+        default:
+            return -EINVAL;
+    }
+    return 0;
+}
+
+// linux/fs.h
 struct file_operations my_fops = {
     .owner = THIS_MODULE,
     .open = hello_open,
+    .unlocked_ioctl = hello_unlocked_ioctl,
     .release = hello_release,
 };
-
-#define GPIO_MAJOR 10
-#define GPIO_MINOR 99
 
 static void cleanup(int device_created)
 {
