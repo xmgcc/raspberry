@@ -53,16 +53,141 @@ static int hello_release(struct inode *pnode, struct file *filp)
     return 0;
 }
 
+// 使用GPIO29
+#define GPIO_PIN 29
+
+// arm MMU后的基址 + 偏移
+// 0x20000000 + 0x00200000
+#define GPIO_BASE_ADDR   0x20200000
+#define GPIO_SIZE 4096
+
+static void gpio_function_select(int mode)
+{
+    volatile uint32_t *fsel_reg;
+    uint32_t val = 0;
+
+    // 映射
+    fsel_reg = ioremap(GPIO_BASE_ADDR, 8);
+
+    // 读取原始值
+    val = ioread32(fsel_reg);
+    printk("gpio_function_select val 0x%x\n", val);
+
+    // clear
+    val &= ~(0x7 << ((GPIO_PIN % 10) * 3));
+
+    // set
+    val |= mode << ((GPIO_PIN % 10) * 3);
+
+    printk("gpio_function_select val 0x%x\n", val);
+
+    // 写入新值
+    iowrite32(val, fsel_reg);
+}
+
+static void gpio_pin_output_set(uint32_t pin)
+{
+    volatile uint32_t *fsel_reg;
+    uint32_t val = 0;
+
+    // 映射
+    fsel_reg = ioremap(GPIO_BASE_ADDR, 0x1c);
+
+    // 读取原始值
+    val = ioread32(fsel_reg);
+
+    printk("gpio_pin_output_set val 0x%x\n", val);
+
+    // set
+    val |= 1 << pin;
+
+    printk("gpio_pin_output_set val 0x%x\n", val);
+
+    // 写入新值
+    iowrite32(val, fsel_reg);
+}
+
+static void gpio_pin_output_clear(uint32_t pin)
+{
+    volatile uint32_t *fsel_reg;
+    uint32_t val = 0;
+
+    // 映射
+    fsel_reg = ioremap(GPIO_BASE_ADDR, 0x28);
+
+    // 读取原始值
+    val = ioread32(fsel_reg);
+
+    printk("gpio_pin_output_clear val 0x%x\n", val);
+
+    // set
+    val |= 1 << pin;
+
+    printk("gpio_pin_output_clear val 0x%x\n", val);
+
+    // 写入新值
+    iowrite32(val, fsel_reg);
+}
+
+/* int bcm2835_gpio_fsel(uint8_t pin, uint8_t mode) */
+/* { */
+/*     //初始化GPIOB功能选择寄存器的物理地址 */
+/*     volatile uint32_t * bcm2835_gpio = (volatile uint32_t *)ioremap(BCM2835_GPIO_BASE, 16); */
+/*     volatile uint32_t * bcm2835_gpio_fsel = bcm2835_gpio + BCM2835_GPFSEL0/4 + (pin/10); */
+/*     uint8_t   shift = (pin % 10) * 3; */
+/*     uint32_t  value = mode << shift; */
+/*     *bcm2835_gpio_fsel = *bcm2835_gpio_fsel | value; */
+/*   */
+/*     printk("fsel address: 0x%lx : %x\n", bcm2835_gpio_fsel, *bcm2835_gpio_fsel); */
+/*   */
+/*     return 0; */
+/* } */
+/*   */
+/* int bcm2835_gpio_set(uint8_t pin) */
+/* { */
+/*     //GPIO输出功能物理地址 */
+/*     volatile uint32_t * bcm2835_gpio = (volatile uint32_t *)ioremap(BCM2835_GPIO_BASE, 16); */
+/*     volatile uint32_t * bcm2835_gpio_set = bcm2835_gpio + BCM2835_GPSET0/4 + pin/32; */
+/*     uint8_t   shift = pin % 32; */
+/*     uint32_t  value = 1 << shift; */
+/*     *bcm2835_gpio_set = *bcm2835_gpio_set | value; */
+/*   */
+/*     printk("set address:  0x%lx : %x\n", bcm2835_gpio_set, *bcm2835_gpio_set); */
+/*   */
+/*     return 0; */
+/* } */
+/*   */
+/* int bcm2835_gpio_clr(uint8_t pin) */
+/* { */
+/*    //GPIO清除功能物理地址 */
+/*     volatile uint32_t * bcm2835_gpio = (volatile uint32_t *)ioremap(BCM2835_GPIO_BASE, 16); */
+/*     volatile uint32_t * bcm2835_gpio_clr = bcm2835_gpio + BCM2835_GPCLR0/4 + pin/32; */
+/*     uint8_t   shift = pin % 32; */
+/*     uint32_t  value = 1 << shift; */
+/*     *bcm2835_gpio_clr = *bcm2835_gpio_clr | value; */
+/*      */
+/*     printk("clr address:  0x%lx : %x\n", bcm2835_gpio_clr, *bcm2835_gpio_clr); */
+/*   */
+/*     return 0; */
+/* } */
+
 static long hello_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-    printk("ioctl success\n");
+    uint32_t myarg = (uint32_t)arg;
+
     switch (cmd)
     {
         case IOCTL_SET_PIN_MODE:
-            printk("IOCTL_SET_PIN_MODE\n");
+            printk("IOCTL_SET_PIN_MODE, arg %d\n", myarg);
+            gpio_function_select(myarg);
             break;
         case IOCTL_SET_PIN_DIGITAL:
-            printk("IOCTL_SET_PIN_DIGITAL\n");
+            printk("IOCTL_SET_PIN_DIGITAL, art %d\n", myarg);
+            if (myarg == LOW) {
+                gpio_pin_output_set(GPIO_PIN);
+            } else {
+                gpio_pin_output_clear(GPIO_PIN);
+            }
             break;
         default:
             return -EINVAL;
@@ -83,6 +208,8 @@ static void cleanup(int device_created)
     dev_t devno;
     printk(KERN_ALERT"Goodbye, cruel world\n");
 
+    /* release_mem_region(GPIO_BASE_ADDR, GPIO_SIZE); */
+
     devno = MKDEV(GPIO_MAJOR, GPIO_MINOR);
     if (mydev) {
         cdev_del(mydev);
@@ -96,6 +223,7 @@ static void cleanup(int device_created)
     unregister_chrdev_region(devno, 1);
 }
 
+#define GPIO_NAME "mygpio"
 static int hello_init(void)
 {
     // 注册主次设备号
@@ -103,14 +231,20 @@ static int hello_init(void)
     dev_t dev = 0;
     int device_created = 0;
     int devno;
-    printk(KERN_ALERT"Hello, world\n");
+    printk(KERN_ALERT"Hello, world, %s\n", __TIME__);
 
     devno = MKDEV(GPIO_MAJOR, GPIO_MINOR);
-    err = register_chrdev_region(dev, 1, "mygpio");
+    err = register_chrdev_region(dev, 1, GPIO_NAME);
     if (err < 0) {
         printk("register_chrdev_region failed\n");
         return -1;
     }
+
+    /* if (request_mem_region(GPIO_BASE_ADDR, GPIO_SIZE, GPIO_NAME) == NULL) { */
+    /*     printk("request_mem_region failed\n"); */
+    /*     return -ENODEV; */
+    /* } */
+
 
     // ls /dev/mygpio
     if (device_create(myclass, NULL, GPIO_MAJOR, NULL, "mygpio") == NULL) {

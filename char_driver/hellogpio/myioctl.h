@@ -13,6 +13,9 @@
 
 #define IOCTL_SET_PIN_DIGITAL _IOW(GPIO_MAJOR, 1, int)
 
+// datasheet
+// 000 INPUT
+// 001 OUTPUT
 #define PIN_MODE_INPUT 0
 #define PIN_MODE_OUTPUT 1
 

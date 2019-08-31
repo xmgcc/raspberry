@@ -11,6 +11,12 @@ int main(int argc, char **argv)
 {
     int fd;
     int err;
+    int level;
+
+    if (argc < 2) {
+        printf("Usage: ./a.out 0/1\n");
+        return -1;
+    }
 
     fd = open("/dev/mygpio", 0);
     if (fd < 0) {
@@ -25,7 +31,9 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    ioctl(fd, IOCTL_SET_PIN_DIGITAL, LOW);
+    level = atoi(argv[1]);
+
+    ioctl(fd, IOCTL_SET_PIN_DIGITAL, !!level);
     if (err < 0) {
         perror("ioctl IOCTL_SET_PIN_DIGITAL LOW failed\n");
         close(fd);
