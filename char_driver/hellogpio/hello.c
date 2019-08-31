@@ -30,7 +30,9 @@
 #include <linux/ioport.h>
 
 //#include "bcm2835.h"
-struct cdev *mydev;
+static struct cdev *mydev;
+
+static struct class *myclass = NULL;
 
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -44,6 +46,7 @@ int hello_open(struct inode *pnode, struct file *filp)
 int hello_release(struct inode *pnode, struct file *filp)
 {
     printk("close success\n");
+    return 0;
 }
 
 struct file_operations my_fops = {
@@ -55,11 +58,30 @@ struct file_operations my_fops = {
 #define GPIO_MAJOR 10
 #define GPIO_MINOR 99
 
+static void cleanup(int device_created)
+{
+    dev_t devno;
+    printk(KERN_ALERT"Goodbye, cruel world\n");
+
+    devno = MKDEV(GPIO_MAJOR, GPIO_MINOR);
+    if (mydev) {
+        cdev_del(mydev);
+        mydev = NULL;
+    }
+
+    if (device_created) {
+        device_destroy(myclass, GPIO_MAJOR);
+    }
+
+    unregister_chrdev_region(devno, 1);
+}
+
 static int hello_init(void)
 {
     // 注册主次设备号
     int err;
     dev_t dev = 0;
+    int device_created = 0;
     int devno;
     printk(KERN_ALERT"Hello, world\n");
 
@@ -69,6 +91,14 @@ static int hello_init(void)
         printk("register_chrdev_region failed\n");
         return -1;
     }
+
+    // ls /dev/mygpio
+    if (device_create(myclass, NULL, GPIO_MAJOR, NULL, "mygpio") == NULL) {
+        printk("device_created failed\n");
+        goto cleanup;
+    }
+
+    device_created = 1;
 
     // 创建struct cdev结构体，初始化
     mydev = cdev_alloc();
@@ -85,12 +115,7 @@ static int hello_init(void)
     return 0;
 
 cleanup:
-    if (mydev) {
-        cdev_del(mydev);
-        mydev = NULL;
-    }
-
-    unregister_chrdev_region(devno, 1);
+    cleanup(device_created);
 
     // return -1模块就不会被内核加载，因此需要把申请的资源先释放掉
     return -1;
@@ -98,16 +123,7 @@ cleanup:
 
 static void hello_exit(void)
 {
-    dev_t devno;
-    printk(KERN_ALERT"Goodbye, cruel world\n");
-
-    devno = MKDEV(GPIO_MAJOR, GPIO_MINOR);
-    if (mydev) {
-        cdev_del(mydev);
-        mydev = NULL;
-    }
-
-    unregister_chrdev_region(devno, 1);
+    cleanup(1);
 }
 
 module_init(hello_init);
