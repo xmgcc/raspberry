@@ -31,6 +31,7 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <linux/ioport.h>
+#include "cmd.h"
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -43,23 +44,39 @@ MODULE_LICENSE("Dual BSD/GPL");
 static struct cdev g_dev;
 static struct class *g_class;
 
-int open (struct inode *inode, struct file *filep)
+// 函数作用域只在当前文件有效
+static int open (struct inode *inode, struct file *filep)
 {
     printk(KERN_ALERT"open success\n");
     return 0;
 }
-int release (struct inode *inode, struct file *filep)
+static int release (struct inode *inode, struct file *filep)
 {
     printk(KERN_ALERT"release success\n");
     return 0;
 }
 
+static long unlocked_ioctl (struct file *filep, unsigned int cmd, unsigned long arg)
+{
+    switch (cmd) {
+        case CMD_PIN_MODE:
+            printk(KERN_ALERT"CMD_PIN_MODE\n");
+            break;
+        case CMD_PIN_LEVEL:
+            printk(KERN_ALERT"CMD_PIN_LEVEL\n");
+            break;
+        default:
+            return -EFAULT;
+    }
+    return 0;
+}
 
 
 struct file_operations myops = {
     .owner = THIS_MODULE,
     .open = open,
     .release = release,
+    .unlocked_ioctl = unlocked_ioctl,
 };
 
 // 跟hello_init的顺序相反
