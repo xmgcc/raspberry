@@ -7,11 +7,17 @@
 
 // sudo mknod /dev/hello c 10 99
 
+/* ./a.out 1 灭 */
+/* ./a.out 0 亮 */
 int main(int argc, char **argv)
 {
     int fd;
     int err;
-    int level;
+    int level = PIN_LEVEL_LOW;
+
+    if (argc >= 2) {
+        level = atoi(argv[1]);
+    }
 
     fd = open("/dev/hello", 0);
     if (fd < 0) {
@@ -20,6 +26,10 @@ int main(int argc, char **argv)
     }
 
     err = ioctl(fd, CMD_PIN_MODE, PIN_MODE_OUTPUT);
+    if (err < 0) {
+        perror("ioctl failed");
+    }
+    err = ioctl(fd, CMD_PIN_LEVEL, level);
     if (err < 0) {
         perror("ioctl failed");
     }

@@ -8,7 +8,9 @@ obj-m := hello.o
 # line; invoke the kernel build system.
 else
 
-KDIR := /home/v/linux-4.19.57
+#
+#KDIR := /home/v/linux-4.19.57
+KDIR :=/home/v/work/linux
 default:
 	make -C $(KDIR) M=$(PWD) modules ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-
 

@@ -56,14 +56,84 @@ static int release (struct inode *inode, struct file *filep)
     return 0;
 }
 
+#define GPIO_PIN 21
+#define GPIO_PIN_21_CONFIGURE_ADDR  0x3f200008
+#define GPIO_PIN_21_OUTPUT_SET_ADDR 0x3f20001c
+#define GPIO_PIN_21_OUTPUT_CLEAR_ADDR 0x3f200028
+
+// 配置引脚
+static void gpio_set_pin_mode(void)
+{
+    void *addr;
+    // 禁止编译器优化
+    volatile uint32_t value;
+    // 1. 映射, ioremap
+    addr = ioremap(GPIO_PIN_21_CONFIGURE_ADDR, 4);
+    // 2. 读取, ioread32
+    value = ioread32(addr);
+    // 3. 改
+    // 3. 1清零
+    value = value & ~(0x7 << 3);
+    // 3.2 置位
+    value = value | (0x1 << 3);
+    // 4. 写入, iowrite32
+    iowrite32(value, addr);
+}
+
+// 设置低电平
+static void gpio_output_set(void)
+{
+    void *addr;
+    // 禁止编译器优化
+    volatile uint32_t value;
+    // 1. 映射, ioremap
+    addr = ioremap(GPIO_PIN_21_OUTPUT_SET_ADDR, 4);
+    // 2. 读取, ioread32
+    value = ioread32(addr);
+    // 3. 改
+    // 3. 1清零
+    value = value & ~(0x1 << 21);
+    // 3.2 置位
+    value = value | (0x1 << 21);
+    // 4. 写入, iowrite32
+    iowrite32(value, addr);
+}
+
+// 设置高电平
+static void gpio_output_clear(void)
+{
+    void *addr;
+    // 禁止编译器优化
+    volatile uint32_t value;
+    // 1. 映射, ioremap
+    addr = ioremap(GPIO_PIN_21_OUTPUT_CLEAR_ADDR, 4);
+    // 2. 读取, ioread32
+    value = ioread32(addr);
+    // 3. 改
+    // 3. 1清零
+    value = value & ~(0x1 << 21);
+    // 3.2 置位
+    value = value | (0x1 << 21);
+    // 4. 写入, iowrite32
+    iowrite32(value, addr);
+}
+
 static long unlocked_ioctl (struct file *filep, unsigned int cmd, unsigned long arg)
 {
+    uint32_t myarg = (uint32_t)arg;
     switch (cmd) {
         case CMD_PIN_MODE:
             printk(KERN_ALERT"CMD_PIN_MODE\n");
+            gpio_set_pin_mode();
             break;
         case CMD_PIN_LEVEL:
-            printk(KERN_ALERT"CMD_PIN_LEVEL\n");
+            printk(KERN_ALERT"CMD_PIN_LEVEL, arg %d\n", myarg);
+            if (myarg == PIN_LEVEL_LOW) {
+                gpio_output_set();
+            } else {
+                gpio_output_clear();
+            }
+
             break;
         default:
             return -EFAULT;
